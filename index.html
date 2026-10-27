@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fa">
+  <meta name="description" content="A small, calm Kanban board for getting thoughts out of your head.">
+  <title>Little Board — a place to put things</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #202a36;
+      --muted: #667386;
+      --border: #e1e6eb;
+      --page: #f8f9fb;
+      --surface: #fff;
+      --column: #f0f3f6;
+      --accent: #3e685c;
+      --accent-light: #e8f2ee;
+      --shadow: 0 2px 10px rgba(25,36,50,.045);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.45; }
+    button, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #83b6a3; outline-offset: 2px; }
+    .shell { width: min(1500px, 100%); margin: 0 auto; padding: 34px 36px 24px; }
+    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 26px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
+    .brand-mark { width: 24px; height: 24px; border-radius: 8px; display: inline-grid; place-items: center; background: #dcece5; color: #37695a; font-weight: 850; font-size: 16px; }
+    h1 { font-size: 26px; letter-spacing: -.9px; margin: 0; font-weight: 760; }
+    .subtitle { margin: 0; font-size: 14px; color: var(--muted); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .soft-btn { color: #536173; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; border-radius: 9px; padding: 9px 12px; transition: background .15s, border-color .15s; }
+    .soft-btn:hover { background: #f0f4f5; border-color: #cbd5db; }
+    .capture { display: flex; gap: 10px; align-items: stretch; border: 1px solid var(--border); background: #fff; border-radius: 14px; padding: 9px; box-shadow: var(--shadow); margin-bottom: 23px; }
+    .capture textarea { flex: 1; min-width: 0; width: 100%; min-height: 42px; max-height: 160px; padding: 9px 11px; border: 0; outline: none; resize: vertical; background: transparent; color: var(--ink); font-size: 15px; }
+    .capture textarea:focus-visible { outline: none; }
+    .capture:focus-within { border-color: #92b5a8; box-shadow: 0 0 0 3px #dcece5; }
+    .capture textarea::placeholder { color: #95a0ae; }
+    .add-btn { background: var(--accent); border: 1px solid var(--accent); color: white; border-radius: 9px; padding: 10px 19px; font-weight: 680; align-self: flex-start; min-height: 42px; }
+    .add-btn:hover { background: #31564b; }
+    .board { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); align-items: stretch; gap: 14px; }
+    .column { background: var(--column); border: 1px solid #e7ebef; border-radius: 15px; padding: 13px; min-height: 450px; display: flex; flex-direction: column; min-width: 0; transition: background .15s; }
+    .column:has(.drop-placeholder) { background: #e9f1ed; }
+    .col-header { display: flex; gap: 6px; align-items: center; min-height: 39px; margin: 0 1px 13px; }
+    .col-dot { width: 9px; height: 9px; border-radius: 50%; background: #a6adb7; flex: 0 0 auto; }
+    .column[data-id="next"] .col-dot { background: #c6a86b; }
+    .column[data-id="doing"] .col-dot { background: #7f9fcb; }
+    .column[data-id="done"] .col-dot { background: #83b39e; }
+    .col-name { margin: 0; font-size: 14px; font-weight: 760; letter-spacing: -.1px; overflow-wrap: anywhere; }
+    .count { background: #e0e5ea; border-radius: 6px; color: #657384; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 3px; }
+    .rename { margin-left: auto; border: none; background: transparent; border-radius: 6px; width: 28px; height: 28px; font-size: 18px; color: #7a8795; line-height: 1; }
+    .rename:hover { background: #dfe6eb; color: #324252; }
+    .card-list { display: flex; flex-direction: column; gap: 9px; flex: 1; min-height: 110px; }
+    .card { border: 1px solid #e5e9ed; border-radius: 10px; box-shadow: 0 1px 3px rgba(25,36,50,.035); background: #fff; display: flex; overflow: hidden; min-height: 63px; }
+    .card:hover { border-color: #ccd8db; }
+    .card-open { background: transparent; border: 0; text-align: left; color: #344152; padding: 12px 4px 12px 13px; flex: 1; min-width: 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+    .card-open:hover { color: #192f3b; }
+    .card-handle { background: transparent; border: 0; border-left: 1px solid transparent; color: #adb6bf; min-width: 30px; padding: 10px 6px 10px 3px; cursor: grab; touch-action: none; user-select: none; font-size: 18px; letter-spacing: -2px; }
+    .card-handle:hover { color: #738898; }
+    .card-handle:active { cursor: grabbing; }
+    .column[data-id="done"] .card { opacity: .78; }
+    .empty { text-align: center; color: #9ba6b1; font-size: 12px; padding: 38px 8px 18px; pointer-events: none; }
+    .drag-source { opacity: .23 !important; }
+    .drag-ghost { position: fixed !important; z-index: 9999; pointer-events: none; margin: 0; transform: rotate(1deg); opacity: .95 !important; box-shadow: 0 16px 35px rgba(25,36,50,.17) !important; }
+    .drop-placeholder { flex: 0 0 52px; border: 2px dashed #91baa7; border-radius: 10px; background: rgba(237,248,242,.64); }
+    .footer { display: flex; align-items: center; gap: 6px; color: #8893a0; font-size: 12px; margin-top: 20px; justify-content: center; text-align: center; }
+    .footer .dot { width: 6px; height: 6px; background: #8eb7a5; border-radius: 50%; display: inline-block; }
+    dialog { width: min(500px, calc(100vw - 28px)); border: 1px solid #dae1e6; border-radius: 17px; padding: 0; box-shadow: 0 26px 90px rgba(18,30,40,.22); color: var(--ink); }
+    dialog::backdrop { background: rgba(30,45,58,.35); backdrop-filter: blur(2px); }
+    .modal { padding: 24px; }
+    .modal h2 { font-size: 18px; margin: 0 0 17px; }
+    .modal label { display: block; font-size: 12px; color: #667386; font-weight: 650; margin: 0 0 7px; }
+    .modal textarea { width: 100%; min-height: 165px; border: 1px solid #d8e0e6; border-radius: 9px; padding: 12px; resize: vertical; font-size: 14px; color: var(--ink); margin-bottom: 15px; }
+    .modal select { width: 100%; border: 1px solid #d8e0e6; border-radius: 9px; background: white; padding: 10px; color: var(--ink); margin-bottom: 21px; }
+    .modal-bottom { display: flex; align-items: center; gap: 9px; }
+    .modal .delete-btn { margin-right: auto; border: 0; color: #a85656; background: transparent; padding: 8px; border-radius: 8px; font-size: 13px; }
+    .modal .delete-btn:hover { background: #fff1ef; }
+    .modal .cancel-btn { border: 1px solid #dbe2e6; background: white; padding: 9px 15px; border-radius: 9px; color: #5f6e7c; }
+    .modal .save-btn { border: 1px solid var(--accent); background: var(--accent); color: white; padding: 9px 17px; border-radius: 9px; font-weight: 650; }
+    #toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 12px); background: #263b38; color: white; padding: 10px 17px; border-radius: 9px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; box-shadow: 0 7px 25px rgba(10,20,20,.15); z-index: 15000; }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    @media (max-width: 1050px) {
+      .board { grid-template-columns: none; grid-auto-columns: minmax(260px, min(75vw, 340px)); grid-auto-flow: column; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 12px; scroll-snap-type: x proximity; }
+      .column { scroll-snap-align: start; min-height: 55vh; }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 22px 14px 16px; }
+      .top { flex-direction: column; gap: 15px; margin-bottom: 18px; }
+      h1 { font-size: 24px; }
+      .actions { justify-content: flex-start; }
+      .soft-btn { padding: 7px 10px; }
+      .capture { margin-bottom: 18px; }
+      .capture textarea { font-size: 16px; }
+      .add-btn { padding: 10px 14px; }
+      .board { grid-auto-columns: min(83vw, 340px); }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
+    .auth-shell { width: min(410px, calc(100% - 30px)); margin: 11vh auto 20px; padding: 30px; background: #fff; border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); }
+    .auth-shell h2 { font-size: 23px; margin: 0 0 6px; }
+    .auth-shell p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+    .auth-shell label { display: block; margin: 14px 0 5px; color: #526175; font-size: 12px; font-weight: 700; }
+    .auth-shell input { display: block; width: 100%; padding: 12px; border: 1px solid #d9e1e6; border-radius: 9px; font: inherit; background: #fff; }
+    .auth-shell .add-btn { width: 100%; margin-top: 20px; }
+    .auth-shell .link-btn { border: none; background: none; color: var(--accent); padding: 0; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .auth-options { margin-top: 15px; text-align: center; }
+    .message { margin-top: 13px; font-size: 12px; line-height: 1.5; color: #506f64; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .message.error { color: #ae5454; }
+    .status { display: inline-flex; align-items: center; gap: 6px; color: #718095; font-size: 12px; white-space: nowrap; }
+    .status-dot { width: 7px; height: 7px; background: #95a1ad; border-radius: 50%; }
+    .status[data-mode="synced"] .status-dot { background: #67ab8c; }
+    .status[data-mode="saving"] .status-dot { background: #c9a75f; }
+    .status[data-mode="offline"] .status-dot { background: #c77964; }
+    .migration { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 12px 16px; margin-bottom: 17px; border: 1px solid #d8e6dc; background: #f1f8f3; border-radius: 11px; font-size: 13px; color: #38564c; }
+    .migration span { flex: 1; min-width: 180px; }
+    #app[hidden], #authScreen[hidden], #migration[hidden] { display: none !important; }
+    .actions { align-items: center; }
+    .soft-btn:disabled, .add-btn:disabled { opacity: .6; cursor: wait; }
+    @media (max-width: 620px) { .auth-shell { margin-top: 6vh; } }
+  </style>
+</head>
+<body>
+  <section id="authScreen" class="auth-shell" aria-label="Sign in">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span><h1>Little Board</h1></div>
+    <p>One little board. Everywhere you sign in.</p>
+    <div id="authLoading" class="message">Connecting…</div>
+    <form id="authForm" hidden>
+      <h2 id="authTitle">Sign in</h2>
+      <label for="authEmail">Email</label>
+      <input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com">
+      <label for="authPassword">Password</label>
+      <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required>
+      <button id="authSubmit" class="add-btn" type="submit">Sign in</button>
+      <div class="auth-options"><button id="authSwitch" class="link-btn" type="button">Create an account instead</button></div>
+    </form>
+    <div id="authMessage" class="message" role="status" aria-live="polite"></div>
+  </section>
+  <main id="app" class="shell" hidden>
+    <header class="top">
+      <div>
+        <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span><h1>Little Board</h1></div>
+        <p class="subtitle">Get it out of your head. Figure out the rest later.</p>
+      </div>
+      <nav class="actions" aria-label="Board tools">
+        <span id="syncStatus" class="status" data-mode="saving" role="status" aria-live="polite"><i class="status-dot"></i><span id="syncText">Connecting…</span></span>
+        <button type="button" id="exportBtn" class="soft-btn">Export backup</button>
+        <button type="button" id="importBtn" class="soft-btn">Import</button>
+        <button type="button" id="clearDoneBtn" class="soft-btn">Clear done</button>
+        <button type="button" id="logoutBtn" class="soft-btn">Sign out</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </nav>
+    </header>
+    <div id="migration" class="migration" hidden>
+      <span>Notes from the older browser-only board were found on this device. Want to bring them into your synced board?</span>
+      <button type="button" id="migrateBtn" class="soft-btn">Bring in local notes</button>
+      <button type="button" id="dismissMigrateBtn" class="soft-btn">Not now</button>
+    </div>
+    <form class="capture" id="captureForm">
+      <textarea id="captureInput" aria-label="New note" rows="1" placeholder="What's on your mind? Just type it here…" maxlength="12000"></textarea>
+      <button class="add-btn" id="addBtn" type="submit">+ Add</button>
+    </form>
+    <div id="board" class="board" aria-label="Kanban board"></div>
+    <footer class="footer"><span class="dot" aria-hidden="true"></span><span>Synced with your Supabase account. Your changes are also kept on this device until uploaded.</span></footer>
+  </main>
+  <dialog id="editDialog" aria-labelledby="editTitle">
+    <form class="modal" id="editForm">
+      <h2 id="editTitle">Edit note</h2>
+      <label for="editText">Note</label>
+      <textarea id="editText" maxlength="12000" required></textarea>
+      <label for="editColumn">Column</label>
+      <select id="editColumn"></select>
+      <div class="modal-bottom">
+        <button type="button" id="deleteBtn" class="delete-btn">Delete</button>
+        <button type="button" id="cancelBtn" class="cancel-btn">Cancel</button>
+        <button type="submit" class="save-btn">Save changes</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="./config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
