@@ -1,0 +1,23 @@
+LITTLE BOARD — DARK MODE + MOBILE CONTROLS UPDATE
+
+WHAT'S NEW
+- Dark theme by default, with a button to switch back to light. Your preference is kept on this device.
+- Drag handles on BOTH sides of every note.
+- Tap either handle to choose a destination column directly; drag as before if you prefer.
+- Column tabs on smaller screens to jump between Inbox, Next, Doing and Done.
+- Compact Options menu for Export, Import, Clear done and Sign out.
+
+UPDATE YOUR EXISTING DEPLOYMENT
+1. Open your GitHub Little Board repository.
+2. Replace the existing index.html and app.js with the versions in this ZIP.
+   These files must remain side-by-side at the same level as config.js.
+3. Commit the two changes. Cloudflare Pages should redeploy automatically.
+4. Reload your site (hard refresh if necessary) on phone and desktop.
+
+LEAVE ALL OF THESE ALONE
+- config.js  (your existing working Supabase URL and publishable key)
+- Supabase database, SQL and authentication settings
+- Your existing notes (they live in Supabase, not in the updated files)
+
+If you have customized index.html or app.js after the previous release,
+review/diff the changes before replacing those files.

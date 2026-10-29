@@ -13,6 +13,10 @@
   const boardEl = document.getElementById('board');
   const capture = document.getElementById('captureInput');
   const dlg = document.getElementById('editDialog');
+  const moveDlg = document.getElementById('moveDialog');
+  const moveChoices = document.getElementById('moveChoices');
+  const movePreview = document.getElementById('movePreview');
+  const columnNav = document.getElementById('columnNav');
   const editForm = document.getElementById('editForm');
   const editText = document.getElementById('editText');
   const editColumn = document.getElementById('editColumn');
@@ -38,9 +42,34 @@
   let loadingUserId = null;
   let retryTimer = null;
   let editingId = null;
+  let movingId = null;
   let pointerDrag = null;
   let toastTimer = null;
   let authMode = 'signin';
+  const modalOpen = () => dlg.open || moveDlg.open;
+
+  function updateThemeButton() {
+    const light = document.documentElement.dataset.theme === 'light';
+    const btn = document.getElementById('themeToggle');
+    btn.textContent = light ? '☾' : '☀';
+    btn.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+    btn.setAttribute('aria-label', btn.title);
+    document.querySelector('meta[name="theme-color"]').content = light ? '#f8f9fb' : '#0e141d';
+  }
+  updateThemeButton();
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const light = document.documentElement.dataset.theme === 'light';
+    document.documentElement.dataset.theme = light ? 'dark' : 'light';
+    try { localStorage.setItem('little-board-theme', light ? 'dark' : 'light'); } catch (_) {}
+    updateThemeButton();
+  });
+  const toolsMenu = document.getElementById('toolsMenu');
+  document.addEventListener('pointerdown', event => {
+    if (toolsMenu.open && !toolsMenu.contains(event.target)) toolsMenu.open = false;
+  });
+  toolsMenu.addEventListener('click', event => {
+    if (event.target.closest('.tools-panel button')) toolsMenu.open = false;
+  });
 
   function uid() {
     return (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -230,7 +259,7 @@
       } else {
         // A revision conflict might have merged cards from a second device.
         // Paint the merged result, not just our earlier optimistic edit.
-        if (!dlg.open && !pointerDrag) render();
+        if (!modalOpen() && !pointerDrag) render();
         else refreshNeeded = true;
         setStatus('synced', 'All changes saved');
         if (refreshNeeded) void refreshRemote();
@@ -248,12 +277,12 @@
     revision = Number(response.data.revision);
     state = replay(serverState, pendingOps);
     persist();
-    if (!updatingForConflict && !dlg.open && !pointerDrag) render();
+    if (!updatingForConflict && !modalOpen() && !pointerDrag) render();
     refreshNeeded = false;
   }
   async function refreshRemote() {
     if (!user || !serverState) return;
-    if (syncing || pendingOps.length || dlg.open || pointerDrag) {
+    if (syncing || pendingOps.length || modalOpen() || pointerDrag) {
       refreshNeeded = true;
       return;
     }
@@ -385,8 +414,15 @@
 
   function render() {
     const boardScroll = boardEl.scrollLeft;
+    columnNav.replaceChildren();
     boardEl.replaceChildren();
     state.columns.forEach(col => {
+      const tab = el('button', 'column-tab');
+      tab.type = 'button';
+      tab.dataset.id = col.id;
+      tab.append(document.createTextNode(col.name), el('span', 'tab-count', String(col.items.length)));
+      tab.addEventListener('click', () => scrollToColumn(col.id));
+      columnNav.append(tab);
       const section = el('section', 'column');
       section.dataset.id = col.id;
       section.setAttribute('aria-label', `${col.name} column`);
@@ -414,13 +450,17 @@
         open.title = 'Click to edit';
         open.setAttribute('aria-label', `Edit note: ${item.text.slice(0,65)}`);
         open.addEventListener('click', () => openEditor(item.id));
-        const handle = el('button', 'card-handle', '⠿');
-        handle.type = 'button';
-        handle.title = 'Drag to move; arrow keys to reposition';
-        handle.setAttribute('aria-label', `Move note: ${item.text.slice(0,60)}`);
-        handle.addEventListener('pointerdown', startPointerDrag);
-        handle.addEventListener('keydown', event => handleArrows(event, item.id));
-        card.append(open, handle);
+        function makeHandle(side) {
+          const handle = el('button', `card-handle card-handle-${side}`, '⠿');
+          handle.type = 'button';
+          handle.title = 'Tap to choose a column, or drag to move';
+          handle.setAttribute('aria-label', `Move note: ${item.text.slice(0,60)}. Tap to choose a column, or use arrow keys.`);
+          handle.setAttribute('aria-haspopup', 'dialog');
+          handle.addEventListener('pointerdown', startPointerDrag);
+          handle.addEventListener('keydown', event => handleArrows(event, item.id));
+          return handle;
+        }
+        card.append(makeHandle('left'), open, makeHandle('right'));
         list.append(card);
       }
       if (!col.items.length) list.append(el('div', 'empty', 'Drop a note here'));
@@ -428,7 +468,60 @@
       boardEl.append(section);
     });
     boardEl.scrollLeft = boardScroll;
+    updateActiveTab();
   }
+  function updateActiveTab() {
+    if (!state.columns.length) return;
+    const boardLeft = boardEl.getBoundingClientRect().left;
+    const columns = [...boardEl.querySelectorAll('.column')];
+    let best = columns[0];
+    for (const col of columns) {
+      if (Math.abs(col.getBoundingClientRect().left - boardLeft) < Math.abs(best.getBoundingClientRect().left - boardLeft)) best = col;
+    }
+    for (const tab of columnNav.children) {
+      if (tab.dataset.id === best?.dataset.id) tab.setAttribute('aria-current', 'true');
+      else tab.removeAttribute('aria-current');
+    }
+  }
+  boardEl.addEventListener('scroll', updateActiveTab, {passive: true});
+  window.addEventListener('resize', updateActiveTab);
+  function scrollToColumn(colId, instant = false) {
+    const col = [...boardEl.querySelectorAll('.column')].find(c => c.dataset.id === colId);
+    if (!col) return;
+    const distance = col.getBoundingClientRect().left - boardEl.getBoundingClientRect().left;
+    boardEl.scrollTo({left: boardEl.scrollLeft + distance, behavior: instant ? 'instant' : 'smooth'});
+    if (instant) updateActiveTab();
+  }
+  function openMoveDialog(id) {
+    const found = findCard(id);
+    if (!found) return;
+    movingId = id;
+    movePreview.textContent = found.item.text.length > 250 ? `${found.item.text.slice(0, 250)}…` : found.item.text;
+    moveChoices.replaceChildren();
+    for (const col of state.columns) {
+      const button = el('button', 'move-choice', col.name);
+      button.type = 'button';
+      button.disabled = col.id === found.col.id;
+      if (button.disabled) button.textContent = `${col.name} ✓`;
+      else button.addEventListener('click', () => {
+        moveCard(id, state.columns.indexOf(col), 0);
+        moveDlg.close();
+        requestAnimationFrame(() => scrollToColumn(col.id, true));
+      });
+      moveChoices.append(button);
+    }
+    moveDlg.showModal();
+  }
+  document.getElementById('moveCancelBtn').addEventListener('click', () => moveDlg.close());
+  document.getElementById('moveEditBtn').addEventListener('click', () => {
+    const id = movingId;
+    moveDlg.close();
+    if (id) openEditor(id);
+  });
+  moveDlg.addEventListener('close', () => {
+    movingId = null;
+    if (refreshNeeded) void refreshRemote();
+  });
   function openEditor(id) {
     const found = findCard(id);
     if (!found) return;
@@ -532,6 +625,11 @@
     mutate({kind:'move',id,colId:target.id,index:itemIndex});
   }
   function handleArrows(event, id) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openMoveDialog(id);
+      return;
+    }
     if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const found = findCard(id);
@@ -611,7 +709,11 @@
       const id = d.id;
       cleanupPointerDrag();
       if (target !== -1) moveCard(id,target,index);
-    } else cleanupPointerDrag();
+    } else {
+      const id = d.id;
+      cleanupPointerDrag();
+      openMoveDialog(id);
+    }
   }
   function onDragKeydown(event) {
     if (event.key === 'Escape') { event.preventDefault(); cleanupPointerDrag(); }
